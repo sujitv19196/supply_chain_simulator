@@ -21,7 +21,7 @@ contract supplyChainNode {
     
 }
 
-contract freightForwarder {
+contract freightForwarder is supplyChainNode{
     /*
        manages the movement of transactions between two nodes in the supply chain network
        main methods: can refund if any transaction has failed, specifics on payments defined by config contract [** to be constructed]
@@ -40,49 +40,79 @@ contract freightForwarder {
     /*
         datastructures
     */
+    SupplyChainTransactions private _globalTransactions;
+
     struct Trip {
         string name;
-        int status;
+        uint status;    // 0 in progress and 1 is failed    
         int transactionID;
         address sender; 
         address receiver;
     }
     
-
-    constructor(int maxValuePerShip) {
+ 
+    constructor(int maxValuePerShip, address transactionAddress) public {
         maxValuePerShip = maxValuePerShip;
+        _globalTransactions = SupplyChainTransactions(transactionAddress);
+        _globalTransactions.addTransactionCreator(this);
+        _globalTransactions.addSupplyChainParty(this, 0);
+        _globalTransactions.addNode(this);
+        
     }
     
-    Trip[] trips;
+    function () external payable {}
+
+    
+    Trip[] trips;   //transit?
     
     /*
         external functions
         Simlar to an API, other contracts (99% transaction contract) will update and take information from this contract
     */
     
-    function addTrip(string name, int transactionID, address sender, address receiver) public view returns (uint256) {
+
+    function addTrip(string name, int transactionID, address sender, address receiver) public returns (uint256) {
         /*
             update array of trips or any other datastructres;
         */
+        Trip memory t = Trip(name, 0, transactionID, sender, receiver); // status initialized to 0 = in progress by default 
+        trips.push(t);  
+        
         return 0;
     }
     
-    function checkTripStatus(int tripID) public view returns (string) {
+    function checkTripStatus(uint256 tripID) public view returns (int) {
         /*
             use datastructure to lookup trip status quickly
         */
-        return 'N/A';
+        if (tripID < 0 || tripID > trips.length - 1) {
+            return -1;
+        }
+        return int(trips[tripID].status);    
     }
     
-    function updateTripStatus(int tripID, int status) public view returns (bool) {
+    function updateTripStatus(uint256 tripID, uint status) public returns (bool) {
         /*
             use datastructures to update the state of tripID denoting that the ship has failed to deliver the products
             status = ENUM {0: in_progress, 1: failed}
             someone updates with status = 1 failed, call internal method to make necessary actions or updates
         */
-        return false;
+        
+        if (tripID < 0 || tripID > trips.length - 1) {
+            return false;
+        }
+        if (trips[tripID].status == 1) {    //if the trip has already failed dont do anything because the refund has already been given 
+            return false;
+        }
+        trips[tripID].status = status; 
+        if (status == 1) {
+            refundTripValue(tripID);
+        }
+        
+        return true;
         
     }
+    //TODO
     
     /*
         internal functions --> the communication of this contract with the supply chain transactions contract
@@ -90,14 +120,34 @@ contract freightForwarder {
         Sending payments, updating information, sending [events]
     */
     
-    function refundTripValue(int tripID) internal view returns(bool) {
+    function refundTripValue(uint256 tripID) payable returns(bool) {    //TODO: private vs internal vs public 
         /*
         tripID has failed
         send transactionID value equally accross the sender and the receiver
         this involves actually sending the ether
         this method should be **payable**
         */
-        return false;
+        if (tripID < 0 || tripID > trips.length - 1) {
+            return false;
+        }
+         
+        address sender = trips[tripID].sender; 
+        address receiver = trips[tripID].receiver;
+        uint256 transactionID = uint256(trips[tripID].transactionID);
+
+        int beanQuantity = int(_globalTransactions.getTransactionQuantity(transactionID));  
+        uint256 saleValueInWei = uint256(beanQuantity * 1);
+        
+        if (address(this).balance < saleValueInWei) {   // if the freight doesnt have enough money . Differnt workflow needed
+            return false;
+        }
+        
+        // _globalTransactions.rejectTransaction(transactionID, "Fright Failed");   //TODO: THIS AUTOMATICALLY GIVES ALL THE MONERY BACK TO THE FARMER 
+       
+        
+        sender.transfer(saleValueInWei / 2);
+        receiver.transfer(saleValueInWei / 2);
+        return true;
     }
 }
 
