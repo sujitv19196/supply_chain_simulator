@@ -123,7 +123,7 @@ contract carrier is supplyChainNode{
         if (status == 1) {
             refundTransitValue(transitID);
         }
-        return true;
+        return true;    // call updateTransactinoOwner() in globalTransactions 
     }
 
     function refundTransitValue(uint256 transitID) payable returns(bool) {
@@ -219,7 +219,7 @@ contract cocoBeanFarmer is supplyChainNode {
 contract manufacturer is supplyChainNode {
     int beanCount = 0; // num_beans this manufacturer has 
     SupplyChainTransactions private _globalTransactions;
-    uint256[] pendingTransactions;
+    uint256[] pendingTransactions;  // treating as stack for now 
     /*
         TODO
         add pending transactions array
@@ -287,6 +287,10 @@ contract manufacturer is supplyChainNode {
         // farmer.claimBeans(int256(_globalTransactions.getTransactionQuantity(transactionID)));
         // cocoBeanFarmer(owner).claimBeans(int256(_globalTransactions.getTransactionQuantity(transactionID)));
         return true;
+    }
+    
+    function getPendingTransaction() returns (uint256 transactionID) {
+        return 0;
     }
 }
 
@@ -374,6 +378,10 @@ contract SupplyChainTransactions {
     function transferTransactionOwnership(uint256 transactionID) {
         transactions[transactionID].currentOwner = msg.sender;
         transactionToOwner[transactionID] = msg.sender;
+    }
+    
+    function updateTransactionOwner(uint256 manifacturerA, uint256 transactionID) {
+        
     }
 
     function getTransactionOwner(uint256 transactionID) returns (address) {
